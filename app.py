@@ -104,12 +104,28 @@ if uploaded_file is not None:
             df["Debit Amount (USD)"], errors="coerce"
         ).fillna(0)
 
-        # BaseID + RVRT 删除逻辑
-        df["BaseID"] = df["MT Transaction ID"].astype(str).str.split("_").str[0]
-        df["HasRVRT"] = df["MT Transaction ID"].astype(str).str.contains("RVRT", na=False)
+    # BaseID 删除逻辑：
+        # 取 MT Transaction ID 中 "_" 前面的内容作为 BaseID
+        df["BaseID"] = (
+            df["MT Transaction ID"]
+            .astype(str)
+            .str.strip()
+            .str.split("_")
+            .str[0]
+        )
 
-        rvrt_base_ids = df.loc[df["HasRVRT"], "BaseID"].unique()
-        df_clean = df[~df["BaseID"].isin(rvrt_base_ids)].copy()
+        # 找出出现超过 1 次的 BaseID
+        duplicate_base_ids = (
+            df.loc[df["BaseID"].ne(""), "BaseID"]
+            .value_counts()
+            .loc[lambda counts: counts > 1]
+            .index
+        )
+
+        # 删除所有 BaseID 重复的记录
+        df_clean = df[
+            ~df["BaseID"].isin(duplicate_base_ids)
+        ].copy()
 
         # Category
         df_clean["Category"] = df_clean.apply(get_category, axis=1)
@@ -268,7 +284,7 @@ if uploaded_file is not None:
         total_rows = len(df)
         valid_rows = len(df_clean)
         removed_rows = total_rows - valid_rows
-        removed_base_ids = len(rvrt_base_ids)
+        removed_base_ids = len(duplicate_base_ids)
 
         col1, col2, col3, col4 = st.columns(4)
 
